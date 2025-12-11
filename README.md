@@ -2,7 +2,7 @@
 
 ## Postman Collections
 
-Import the [`Simple Auth.postman_collection.json`](https://github.com/Morteza-24/simple-login-signup/Simple%20Auth.postman_collection.json) file in Postman.
+Import the [`Simple Auth.postman_collection.json`](https://github.com/Morteza-24/simple-login-signup/blob/main/Simple%20Auth.postman_collection.json) file in Postman.
 
 ## Quick Start
 
