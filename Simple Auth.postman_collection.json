@@ -1,0 +1,234 @@
+{
+	"info": {
+		"_postman_id": "8a84736b-405b-4a0f-b2a2-c1845e3adab0",
+		"name": "Simple Auth",
+		"description": "**Simple Authentication Using Django Rest Framework with Defensive Rate-limiting**",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "50727095",
+		"_collection_link": "https://morteza24-4050426.postman.co/workspace/fbf47089-305b-42d0-86c3-db805dfadead/collection/50727095-8a84736b-405b-4a0f-b2a2-c1845e3adab0?action=share&source=collection_link&creator=50727095"
+	},
+	"item": [
+		{
+			"name": "Start Authentication",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Successful POST request\", function () {",
+							"    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+							"});",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				},
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n\t\"phone\": \"09123456789\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseURL}}/api/auth/start/",
+					"host": [
+						"{{baseURL}}"
+					],
+					"path": [
+						"api",
+						"auth",
+						"start",
+						""
+					]
+				},
+				"description": "Handles the first step of authentication (POST).\n\n**Expected request (application/json):**\n\n``` json\n{\n  \"phone\": \"<user phone number>\"\n}\n\n ```\n\n**Behavior:**\n\n- If the phone belongs to an existing user, returns `200` with `{\"detail\": ..., \"mode\": \"login\"}` so the client proceeds to the login page.\n    \n- If the phone is new, checks rate/lock state and, if allowed, generates a 6-digit OTP, caches it for 3 minutes, sends it to the phone, and returns `200` with `{\"detail\": ..., \"mode\": \"signup\"}` so the client proceeds to signup.\n    \n- If the phone/ip is locked due to too many attempts, returns `403` with an explanatory `{\"detail\": ...}`.\n    \n- If input validation fails, returns `400` with serializer errors.\n    \n\n**Note:** A phone number can receive an OTP only once every 3 minutes."
+			},
+			"response": []
+		},
+		{
+			"name": "Signup: Verify OTP",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"phone\": \"09123456789\",\n    \"otp\": \"630402\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseURL}}/api/auth/verify-otp/",
+					"host": [
+						"{{baseURL}}"
+					],
+					"path": [
+						"api",
+						"auth",
+						"verify-otp",
+						""
+					]
+				},
+				"description": "Accepts a phone number and an OTP to verify ownership of the phone as the first step of the signup flow. On successful verification, issues a short-lived temporary token which is used by the next step in the signup process.\n\n**Expected request (application/json):**\n\n`{\"phone\": \"\", \"otp\": \"\"}`\n\n**Successful response (HTTP 200):**\n\n`{\"tmp_token\": \"\", \"detail\": \"OTP verified successfully\"}`\n\n- The temporary token is generated and cached for subsequent signup steps on success, and it is valid for a short time (10 minutes).\n    \n- The verified OTP is consumed/removed.\n    \n\n**Client errors:**\n\n- HTTP 400: Invalid request payload (validation errors).\n    \n- HTTP 401: Provided OTP is incorrect.\n    \n- HTTP 410: Provided OTP has expired or is not present in the server cache.\n    \n\n**Rate limiting / locking:**\n\n- The endpoint tracks unsuccessful attempts per phone number and per client IP.\n    \n- If a single phone number receives 3 wrong OTP submissions, that phone is blocked for 1 hour.\n    \n- If a single IP address submits 3 wrong phone+OTP combinations, that IP is blocked for 1 hour.\n    \n- When blocked, the endpoint returns HTTP 403 with an explanatory message."
+			},
+			"response": []
+		},
+		{
+			"name": "Signup: Create Account",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"token\": \"c130cd3d-6f09-41e0-bade-77a419bb85e8\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"email\": \"John@google.com\",\n    \"password\": \"secret_password\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseURL}}/api/auth/complete-signup/",
+					"host": [
+						"{{baseURL}}"
+					],
+					"path": [
+						"api",
+						"auth",
+						"complete-signup",
+						""
+					]
+				},
+				"description": "Finalizes a user's signup by submitting the remaining profile information and a one-time signup token previously issued in the first step of signup (after phone verification). This endpoint creates the user account and associated profile, consumes the signup token, and returns JWT authentication tokens.\n\n**Expected request (application/json):**\n\n``` json\n{\n  \"token\": \"<string>\",        # Required. One-time token issued by the initial signup step.\n  \"first_name\": \"<string>\",   # Required. User&#x27;s given name.\n  \"last_name\": \"<string>\",    # Required. User&#x27;s family name.\n  \"email\": \"<string>\",        # Required. User&#x27;s email address.\n  \"password\": \"<string>\"      # Required. Plain-text password for the new account.\n}\n\n ```\n\n**Success Response (201 Created):**\n\n``` json\n{\n  \"detail\": \"\", # Human-readable success message.\n  \"refresh\": \"\", # JWT refresh token (use to obtain new access tokens).\n  \"access\": \"\" # JWT access token for authenticated requests.\n}\n\n ```\n\n**Failure Responses:**\n\n- `400 Bad Request`: Payload validation errors. Response body contains serializer errors keyed by field.\n    \n- `401 Unauthorized`: Token missing or expired.\n    \n\n**Behavior:**\n\n- If the token is missing or expired (no phone found in cache), the endpoint responds with `HTTP 401`.\n    \n- If the token is valid, a new user is created.\n    \n- Upon successful creation, a JWT refresh token and corresponding access token are returned in the response.\n    \n\n**Notes:**\n\n- Transport security (HTTPS) is required to protect the password in transit.\n    \n- The endpoint issues JWTs (refresh and access). Clients should store the refresh token securely and use the access token for authenticated requests until it expires."
+			},
+			"response": []
+		},
+		{
+			"name": "Login: get JWT",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"09123456789\",\n    \"password\": \"secret_password\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseURL}}/api/token/",
+					"host": [
+						"{{baseURL}}"
+					],
+					"path": [
+						"api",
+						"token",
+						""
+					]
+				},
+				"description": "Endpoint for obtaining JWT access and refresh tokens with defensive rate-limiting and lockout checks applied per username and per IP address.\n\n**Expected request (application/json):**\n\n``` json\n{\n  \"username\": \"<phone_number>\",\n  \"password\": \"<password>\"\n}\n\n ```\n\n**Responses:**\n\n- 200 OK: `{\"access\": \"\", \"refresh\": \"\"}`\n    \n- 403 Forbidden: Returned when a user- or IP-level lockout is in effect.\n    \n- 400 / 401: Returned for malformed requests or invalid credentials.\n    \n\n**Behavior:**\n\n- If a single phone number receives 3 wrong password submissions, that phone is blocked for 1 hour.\n    \n- If a single IP address submits 3 wrong phone+password combinations, that IP is blocked for 1 hour.\n    \n- When blocked, the endpoint returns HTTP 403 with an explanatory message."
+			},
+			"response": []
+		},
+		{
+			"name": "Login: Refresh JWT",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"refresh\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc2NTQ5NDU2MiwiaWF0IjoxNzY1NDA4MTYyLCJqdGkiOiJmOGZlZGJhNDVlYzM0NjY1OTAyYjY3MWRjZDc0ZWQ2NCIsInVzZXJfaWQiOiI1In0.oxx3wCUUCvAT3vP1ETNbGUxnIPR4_DexbC6Xc3SnnuQ\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseURL}}/api/token/refresh/",
+					"host": [
+						"{{baseURL}}"
+					],
+					"path": [
+						"api",
+						"token",
+						"refresh",
+						""
+					]
+				},
+				"description": "Endpoint for obtaining JWT access token using refresh token.\n\n**Expected request (application/json):**\n\n``` json\n{\n  \"refresh\": \"<refresh_token>\"\n}\n\n ```\n\n**Responses:**\n\n- 200 OK: `{\"access\": \"\"}`\n    \n- 400 / 401: Returned for malformed requests or invalid credentials."
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseURL",
+			"value": "",
+			"type": "default"
+		}
+	]
+}

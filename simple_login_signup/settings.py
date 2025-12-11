@@ -20,6 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
+# this will eventually be read from an environment variable
 SECRET_KEY = 'django-insecure-!xtwj&g!j@my$^!$07@phv7h-pz7u#a4bke*lbdxa%!*zl2++0'
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -38,8 +39,36 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+	'rest_framework_simplejwt',
+	'phonenumber_field',
+    'defender',
     'simple_auth',
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+	'DEFAULT_PERMISSION_CLASSES': [
+		'rest_framework.permissions.IsAuthenticated',
+	],
+    'EXCEPTION_HANDLER': 'simple_auth.utils.custom_exception_handler'
+}
+
+DEFENDER_LOGIN_FAILURE_LIMIT = 3
+DEFENDER_COOLOFF_TIME = 3600  # if we want cooloff only for lockouts: DEFENDER_LOCKOUT_COOLOFF_TIME
+DEFENDER_DISABLE_IP_LOCKOUT = True  # we use usernames for both IP and username, because we want to
+                                    # use defender on both login and signup. so we need to prepend
+									# usernames and IPs with the endpoint name.
+DEFENDER_REDIS_URL = 'redis://127.0.0.1:6379'
+DEFENDER_STORE_ACCESS_ATTEMPTS = False
+
+CACHES = {
+	'default': {
+		'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+		'LOCATION': 'redis://127.0.0.1:6379',
+	}
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -49,6 +78,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'defender.middleware.FailedLoginMiddleware',
 ]
 
 ROOT_URLCONF = 'simple_login_signup.urls'

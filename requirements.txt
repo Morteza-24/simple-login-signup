@@ -1,0 +1,6 @@
+django
+djangorestframework
+djangorestframework-simplejwt
+django-phonenumber-field[phonenumberslite]
+django-defender
+redis[hiredis]
